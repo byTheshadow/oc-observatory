@@ -5,7 +5,7 @@ import HoldToEnter from '@/components/HoldToEnter';
 import PasswordLock from '@/components/PasswordLock';
 
 // TODO: 后续把首页背景图 URL 填到这里；为空时用深色渐变兜底
-const BG_IMAGE_URL = '';
+const BG_IMAGE_URL = 'https://img3.tofaka.com/autoupload/amqnh/20260729/ygCN/1456X816/metro.ant_Two_extremely_cute_chibi_boys_taking_a_nap_together_47396ccf-c6a2-4df9-b552-29d98d41d471_3.png/webp';
 
 export default function Home() {
   // 鼠标位置：用于背景视差
