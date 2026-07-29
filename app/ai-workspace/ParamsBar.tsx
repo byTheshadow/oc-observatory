@@ -288,9 +288,10 @@ function PortalPanel({
   }, [anchorRect]);
 
   // 点外部/Esc 关闭
-  useEffect(() => {
-    function onDoc(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+   useEffect(() => {
+    function onDoc(e: Event) {
+      const target = e.target as Node | null;
+      if (ref.current && target && !ref.current.contains(target)) onClose();
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
@@ -305,6 +306,7 @@ function PortalPanel({
       document.removeEventListener('keydown', onKey);
     };
   }, [onClose]);
+
 
   if (!mounted || !pos) return null;
 
