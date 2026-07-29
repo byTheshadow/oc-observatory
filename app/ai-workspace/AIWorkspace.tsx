@@ -7,6 +7,7 @@ import MessageItem, { type Msg } from './MessageItem';
 import SettingsDrawer, { type AIConfig } from './SettingsDrawer';
 import ParamsBar, { type Defaults } from './ParamsBar';
 import PresetManager from './PresetManager';
+import StyleManager from './StyleManager';
 
 type Character = {
   id: string;
@@ -16,7 +17,12 @@ type Character = {
   sections: Record<string, string> | null;
   bio: string | null;
 };
-type Style = { id: string; name: string; description: string | null };
+type Style = {
+  id: string;
+  name: string;
+  description: string | null;
+  is_preset?: boolean;
+};
 type Preset = { id: string; title: string; content: string; category: string };
 
 type Session = {
@@ -84,7 +90,7 @@ export default function AIWorkspace({
 }) {
   const router = useRouter();
   const [characters] = useState<Character[]>(initial.characters);
-  const [styles] = useState<Style[]>(initial.styles);
+  const [styles, setStyles] = useState<Style[]>(initial.styles);
   const [presets, setPresets] = useState<Preset[]>(initial.presets);
   const [worldbooks, setWorldbooks] = useState<Preset[]>(initial.worldbooks);
 
@@ -97,6 +103,7 @@ export default function AIWorkspace({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [presetMgr, setPresetMgr] = useState<null | 'preset' | 'worldbook'>(null);
+  const [styleMgrOpen, setStyleMgrOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
 
   const [input, setInput] = useState('');
@@ -637,6 +644,7 @@ export default function AIWorkspace({
               onChange={setDefaults}
               onManagePresets={() => setPresetMgr('preset')}
               onManageWorldbooks={() => setPresetMgr('worldbook')}
+              onManageStyles={() => setStyleMgrOpen(true)}
               config={config}
             />
           </div>
@@ -753,6 +761,14 @@ export default function AIWorkspace({
         />
       )}
 
+      {styleMgrOpen && (
+        <StyleManager
+          initialItems={styles}
+          onChange={(list) => setStyles(list)}
+          onClose={() => setStyleMgrOpen(false)}
+        />
+      )}
+
       {archiveOpen && currentSession && (
         <ArchiveDialog
           session={currentSession}
@@ -785,7 +801,6 @@ function ArchiveDialog({
     characterIds: string[];
   }) => Promise<void>;
 }) {
-  // 默认只勾选所有 AI 消息
   const [selected, setSelected] = useState<Set<string>>(
     () =>
       new Set(
@@ -894,7 +909,6 @@ function ArchiveDialog({
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-4">
-          {/* 标题 */}
           <label className="block">
             <span className="text-[11px] tracking-[0.25em] text-white/50">
               短打标题
@@ -907,7 +921,6 @@ function ArchiveDialog({
             />
           </label>
 
-          {/* 关联角色 */}
           <div className="mt-5">
             <p className="text-[11px] tracking-[0.25em] text-white/50">
               关联角色
@@ -938,7 +951,6 @@ function ArchiveDialog({
             </div>
           </div>
 
-          {/* 消息勾选 */}
           <div className="mt-5">
             <div className="mb-2 flex items-center justify-between">
               <p className="text-[11px] tracking-[0.25em] text-white/50">
@@ -1028,7 +1040,6 @@ function ArchiveDialog({
           </label>
         </div>
 
-        {/* 底部操作 */}
         <div className="border-t border-white/10 px-6 py-4">
           <div className="mb-3 flex items-center justify-between text-[11px] tracking-widest text-white/45">
             <span>
@@ -1173,7 +1184,7 @@ function EmptyState({
   const tips = [
     '写一段玉元一和池不晚初次见面的场景',
     '池不晚被封印的记忆碎片回闪，写内心独白',
-    '两人在山门夜话，玉元一嘴硬吐真情',
+    '两人在山门夜话',
   ];
   return (
     <div className="mt-16 text-center">

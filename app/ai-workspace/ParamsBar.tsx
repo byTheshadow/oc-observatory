@@ -9,7 +9,7 @@ export type Defaults = {
   worldbookIds: string[];
   styleId: string;
   viewpoint: string;
-  wordLimit: string; // '500'|'1000'|'2000'|'3000'|'unlimited'|自填
+  wordLimit: string;
   extra: string;
 };
 
@@ -38,6 +38,7 @@ export default function ParamsBar({
   onChange,
   onManagePresets,
   onManageWorldbooks,
+  onManageStyles,
   config,
 }: {
   characters: Character[];
@@ -48,6 +49,7 @@ export default function ParamsBar({
   onChange: (d: Defaults) => void;
   onManagePresets: () => void;
   onManageWorldbooks: () => void;
+  onManageStyles: () => void;
   config: { model: string };
 }) {
   const [open, setOpen] = useState<{
@@ -161,7 +163,7 @@ export default function ParamsBar({
             />
           )}
           {open.key === 'style' && (
-            <SinglePick
+            <SinglePickWithManage
               title="选择文风"
               items={[
                 { id: '', label: '（不指定）' },
@@ -173,6 +175,8 @@ export default function ParamsBar({
               ]}
               selected={defaults.styleId}
               onChange={(id) => patch({ styleId: id })}
+              onManage={onManageStyles}
+              manageLabel="管理文风"
             />
           )}
           {open.key === 'view' && (
@@ -234,7 +238,7 @@ function Chip({
   );
 }
 
-/* ---------- 用 Portal 挂到 body 的面板，避开 overflow 裁切 ---------- */
+/* ---------- Portal 面板 ---------- */
 
 function PortalPanel({
   anchorRect,
@@ -257,20 +261,15 @@ function PortalPanel({
 
   useEffect(() => setMounted(true), []);
 
-  // 计算位置：优先放在锚点下方，不够就翻到上方
   useLayoutEffect(() => {
-    const vw =
-      typeof window !== 'undefined' ? window.innerWidth : 360;
-    const vh =
-      typeof window !== 'undefined' ? window.innerHeight : 640;
+    const vw = typeof window !== 'undefined' ? window.innerWidth : 360;
+    const vh = typeof window !== 'undefined' ? window.innerHeight : 640;
     const gutter = 8;
     const width = Math.min(360, vw - gutter * 2);
-    // 水平：以锚点左边为起点，但不超出视口
     let left = anchorRect.left;
     if (left + width > vw - gutter) left = vw - gutter - width;
     if (left < gutter) left = gutter;
 
-    // 垂直
     const spaceBelow = vh - anchorRect.bottom - gutter;
     const spaceAbove = anchorRect.top - gutter;
     const preferBelow = spaceBelow >= 220 || spaceBelow >= spaceAbove;
@@ -287,8 +286,7 @@ function PortalPanel({
     setPos({ top, left, maxHeight, width, placement });
   }, [anchorRect]);
 
-  // 点外部/Esc 关闭
-   useEffect(() => {
+  useEffect(() => {
     function onDoc(e: Event) {
       const target = e.target as Node | null;
       if (ref.current && target && !ref.current.contains(target)) onClose();
@@ -296,7 +294,6 @@ function PortalPanel({
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
     }
-    // 用 mousedown 之外，也监听 touchstart 以覆盖手机
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('touchstart', onDoc, { passive: true });
     document.addEventListener('keydown', onKey);
@@ -306,7 +303,6 @@ function PortalPanel({
       document.removeEventListener('keydown', onKey);
     };
   }, [onClose]);
-
 
   if (!mounted || !pos) return null;
 
@@ -328,7 +324,7 @@ function PortalPanel({
   );
 }
 
-/* ---------- 各面板内容 ---------- */
+/* ---------- 各面板 ---------- */
 
 function MultiPick({
   title,
@@ -429,6 +425,25 @@ function SinglePick({
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function SinglePickWithManage(
+  props: Parameters<typeof SinglePick>[0] & {
+    onManage: () => void;
+    manageLabel: string;
+  },
+) {
+  return (
+    <div>
+      <SinglePick {...props} />
+      <button
+        onClick={props.onManage}
+        className="mt-3 w-full rounded-md border border-white/15 py-1.5 text-xs text-white/80 hover:bg-white/5"
+      >
+        {props.manageLabel}
+      </button>
     </div>
   );
 }
