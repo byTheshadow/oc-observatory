@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MessageItem, { type Msg } from './MessageItem';
 import SettingsDrawer, { type AIConfig } from './SettingsDrawer';
@@ -57,6 +58,19 @@ function getPassword() {
   if (typeof window === 'undefined') return '';
   return localStorage.getItem(PW_KEY) ?? '';
 }
+async function postJSON(url: string, body: any) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-password': getPassword(),
+    },
+    body: JSON.stringify(body),
+  });
+  const j = await res.json().catch(() => ({ ok: false, error: '响应异常' }));
+  if (!res.ok || !j.ok) throw new Error(j.error || `HTTP ${res.status}`);
+  return j;
+}
 
 export default function AIWorkspace({
   initial,
@@ -68,6 +82,7 @@ export default function AIWorkspace({
     worldbooks: Preset[];
   };
 }) {
+  const router = useRouter();
   const [characters] = useState<Character[]>(initial.characters);
   const [styles] = useState<Style[]>(initial.styles);
   const [presets, setPresets] = useState<Preset[]>(initial.presets);
@@ -82,6 +97,7 @@ export default function AIWorkspace({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [presetMgr, setPresetMgr] = useState<null | 'preset' | 'worldbook'>(null);
+  const [archiveOpen, setArchiveOpen] = useState(false);
 
   const [input, setInput] = useState('');
   const [streamingMsgId, setStreamingMsgId] = useState<string | null>(null);
@@ -322,7 +338,6 @@ export default function AIWorkspace({
       createdAt: Date.now(),
     };
 
-    // 追加两条消息 + 自动改标题（若为首条）
     setSessions((prev) =>
       prev.map((s) => {
         if (s.id !== sid) return s;
@@ -338,7 +353,6 @@ export default function AIWorkspace({
     setInput('');
     setStreamingMsgId(aiMsg.id);
 
-    // 构建 API messages
     const history = (currentSession?.messages ?? []).map((m) => ({
       role: m.role,
       content: m.variants[m.variantIndex] ?? '',
@@ -381,7 +395,6 @@ export default function AIWorkspace({
     const idx = currentSession.messages.findIndex((m) => m.id === msgId);
     if (idx < 0 || currentSession.messages[idx].role !== 'assistant') return;
 
-    // 追加新 variant，并把 index 指过去
     updateCurrentMessages((msgs) =>
       msgs.map((m) => {
         if (m.id !== msgId) return m;
@@ -394,7 +407,6 @@ export default function AIWorkspace({
     );
     setStreamingMsgId(msgId);
 
-    // 构建到该 assistant 之前的所有消息（用各自当前 variant）
     const priorMessages = currentSession.messages
       .slice(0, idx)
       .map((m) => ({
@@ -432,7 +444,6 @@ export default function AIWorkspace({
     if (!currentSession) return;
     const idx = currentSession.messages.findIndex((m) => m.id === msgId);
     if (idx < 0) return;
-    // 覆盖该消息，删除其后所有消息
     const kept = currentSession.messages.slice(0, idx);
     const edited: Msg = {
       ...currentSession.messages[idx],
@@ -494,6 +505,29 @@ export default function AIWorkspace({
     }
   }
 
+  /* ---------- 归档 ---------- */
+  async function doArchive(payload: {
+    title: string;
+    content: string;
+    characterIds: string[];
+  }) {
+    const j = await postJSON('/api/stories/create', {
+      title: payload.title,
+      content: payload.content,
+      characterIds: payload.characterIds,
+      source: 'ai_workspace',
+    });
+    setArchiveOpen(false);
+    router.push(`/stories/${j.id}?edit=1`);
+  }
+
+  const canArchive =
+    unlocked &&
+    !!currentSession &&
+    currentSession.messages.some(
+      (m) => (m.variants[m.variantIndex] ?? '').trim().length > 0,
+    );
+
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden bg-[#0b0b0c] text-white">
       {/* 侧栏 · 桌面常驻 */}
@@ -552,6 +586,15 @@ export default function AIWorkspace({
         </div>
 
         <div className="border-t border-white/10 px-3 py-3">
+          <Link
+            href="/stories"
+            className="mb-1 flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-white/80 hover:bg-white/5"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <path d="M4 4h12a2 2 0 012 2v14l-4-2-4 2-4-2-2 1V6a2 2 0 012-2z" />
+            </svg>
+            短打放映室
+          </Link>
           <button
             onClick={() => setSettingsOpen(true)}
             className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-white/80 hover:bg-white/5"
@@ -628,6 +671,19 @@ export default function AIWorkspace({
                 未解锁编辑模式，回到角色页点右上锁 → 输入密码后可使用
               </p>
             )}
+            {canArchive && (
+              <div className="mb-2 flex justify-center">
+                <button
+                  onClick={() => setArchiveOpen(true)}
+                  className="flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.03] px-4 py-1.5 text-[11px] tracking-[0.25em] text-white/70 transition hover:border-white/35 hover:text-white"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                    <path d="M4 4h12a2 2 0 012 2v14l-4-2-4 2-4-2-2 1V6a2 2 0 012-2z" />
+                  </svg>
+                  归档到短打
+                </button>
+              </div>
+            )}
             <div className="flex items-end gap-2 rounded-2xl border border-white/15 bg-white/[0.04] p-2 focus-within:border-white/35">
               <textarea
                 value={input}
@@ -696,6 +752,307 @@ export default function AIWorkspace({
           onClose={() => setPresetMgr(null)}
         />
       )}
+
+      {archiveOpen && currentSession && (
+        <ArchiveDialog
+          session={currentSession}
+          characters={characters}
+          defaultCharacterIds={defaults.characterIds}
+          onClose={() => setArchiveOpen(false)}
+          onArchive={doArchive}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ---------- 归档到短打 弹窗 ---------- */
+
+function ArchiveDialog({
+  session,
+  characters,
+  defaultCharacterIds,
+  onClose,
+  onArchive,
+}: {
+  session: Session;
+  characters: Character[];
+  defaultCharacterIds: string[];
+  onClose: () => void;
+  onArchive: (p: {
+    title: string;
+    content: string;
+    characterIds: string[];
+  }) => Promise<void>;
+}) {
+  // 默认只勾选所有 AI 消息
+  const [selected, setSelected] = useState<Set<string>>(
+    () =>
+      new Set(
+        session.messages
+          .filter((m) => m.role === 'assistant')
+          .map((m) => m.id),
+      ),
+  );
+  const [title, setTitle] = useState(session.title);
+  const [charIds, setCharIds] = useState<string[]>(defaultCharacterIds);
+  const [includeUserPrefix, setIncludeUserPrefix] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  function toggleMsg(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function toggleChar(id: string) {
+    setCharIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }
+
+  function selectAll() {
+    setSelected(new Set(session.messages.map((m) => m.id)));
+  }
+  function selectAllAI() {
+    setSelected(
+      new Set(
+        session.messages
+          .filter((m) => m.role === 'assistant')
+          .map((m) => m.id),
+      ),
+    );
+  }
+  function selectNone() {
+    setSelected(new Set());
+  }
+
+  function buildContent(): string {
+    const parts: string[] = [];
+    for (const m of session.messages) {
+      if (!selected.has(m.id)) continue;
+      const raw = (m.variants[m.variantIndex] ?? '').trim();
+      if (!raw) continue;
+      if (m.role === 'user' && includeUserPrefix) {
+        parts.push(`【提问】${raw}`);
+      } else {
+        parts.push(raw);
+      }
+    }
+    return parts.join('\n\n');
+  }
+
+  const previewCount = buildContent().replace(/\s+/g, '').length;
+
+  async function submit() {
+    setErr(null);
+    const content = buildContent();
+    if (!content.trim()) {
+      setErr('请至少勾选一条包含内容的消息');
+      return;
+    }
+    setSaving(true);
+    try {
+      await onArchive({
+        title: title.trim() || '未命名短打',
+        content,
+        characterIds: charIds,
+      });
+    } catch (e: any) {
+      setErr(e?.message ?? '归档失败');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[95] flex items-center justify-center bg-black/70 p-4"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/15 bg-[#141414] shadow-2xl"
+      >
+        <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+          <div>
+            <h4 className="font-cn text-sm tracking-[0.25em] text-white/90">
+              归档到短打
+            </h4>
+            <p className="mt-1 text-[10px] tracking-[0.3em] text-white/40">
+              ARCHIVE TO STORIES
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-full border border-white/15 px-3 py-1 text-xs text-white/70 hover:border-white/35 hover:text-white"
+          >
+            关闭
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          {/* 标题 */}
+          <label className="block">
+            <span className="text-[11px] tracking-[0.25em] text-white/50">
+              短打标题
+            </span>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="mt-1.5 w-full rounded-md border border-white/15 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-white/40"
+              placeholder="给这篇短打起个名字"
+            />
+          </label>
+
+          {/* 关联角色 */}
+          <div className="mt-5">
+            <p className="text-[11px] tracking-[0.25em] text-white/50">
+              关联角色
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {characters.length === 0 && (
+                <span className="text-[11px] text-white/40">
+                  （还没有角色可选）
+                </span>
+              )}
+              {characters.map((c) => {
+                const on = charIds.includes(c.id);
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => toggleChar(c.id)}
+                    className={
+                      on
+                        ? 'rounded-full bg-white px-3 py-1 text-[11px] tracking-widest text-black'
+                        : 'rounded-full border border-white/20 px-3 py-1 text-[11px] tracking-widest text-white/70 hover:border-white/45'
+                    }
+                  >
+                    {c.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 消息勾选 */}
+          <div className="mt-5">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-[11px] tracking-[0.25em] text-white/50">
+                选择要归档的消息
+              </p>
+              <div className="flex gap-2 text-[11px] tracking-widest text-white/50">
+                <button className="hover:text-white" onClick={selectAllAI}>
+                  仅 AI
+                </button>
+                <span className="text-white/20">·</span>
+                <button className="hover:text-white" onClick={selectAll}>
+                  全选
+                </button>
+                <span className="text-white/20">·</span>
+                <button className="hover:text-white" onClick={selectNone}>
+                  清空
+                </button>
+              </div>
+            </div>
+
+            <ul className="space-y-2">
+              {session.messages.map((m) => {
+                const on = selected.has(m.id);
+                const raw = m.variants[m.variantIndex] ?? '';
+                const preview =
+                  raw.length > 120 ? raw.slice(0, 120) + '…' : raw;
+                return (
+                  <li key={m.id}>
+                    <button
+                      type="button"
+                      onClick={() => toggleMsg(m.id)}
+                      className={
+                        on
+                          ? 'flex w-full items-start gap-3 rounded-lg border border-white/40 bg-white/[0.08] p-3 text-left'
+                          : 'flex w-full items-start gap-3 rounded-lg border border-white/10 bg-white/[0.02] p-3 text-left hover:border-white/25'
+                      }
+                    >
+                      <span
+                        className={
+                          on
+                            ? 'mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded border border-white bg-white'
+                            : 'mt-0.5 grid h-4 w-4 shrink-0 rounded border border-white/40'
+                        }
+                      >
+                        {on && (
+                          <svg
+                            width="10"
+                            height="10"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="black"
+                            strokeWidth="3"
+                          >
+                            <path d="M5 12l5 5L20 7" />
+                          </svg>
+                        )}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1 flex items-center gap-2 text-[10px] tracking-widest text-white/45">
+                          <span>{m.role === 'user' ? '用户' : 'AI'}</span>
+                          {m.variants.length > 1 && (
+                            <span>
+                              · 分支 {m.variantIndex + 1}/{m.variants.length}
+                            </span>
+                          )}
+                        </div>
+                        <p className="whitespace-pre-wrap break-words text-sm text-white/80">
+                          {preview || (
+                            <span className="text-white/30">（空消息）</span>
+                          )}
+                        </p>
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          <label className="mt-4 flex items-center gap-2 text-[11px] tracking-widest text-white/55">
+            <input
+              type="checkbox"
+              checked={includeUserPrefix}
+              onChange={(e) => setIncludeUserPrefix(e.target.checked)}
+            />
+            为勾选的用户消息添加「【提问】」前缀
+          </label>
+        </div>
+
+        {/* 底部操作 */}
+        <div className="border-t border-white/10 px-6 py-4">
+          <div className="mb-3 flex items-center justify-between text-[11px] tracking-widest text-white/45">
+            <span>
+              已选 {selected.size} 条 · 约 {previewCount} 字
+            </span>
+            {err && <span className="text-red-300">{err}</span>}
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={onClose}
+              className="rounded-full border border-white/20 px-4 py-1.5 text-xs tracking-widest text-white/75 hover:border-white/40"
+            >
+              取消
+            </button>
+            <button
+              onClick={submit}
+              disabled={saving}
+              className="rounded-full bg-white px-4 py-1.5 text-xs tracking-widest text-black hover:bg-white/85 disabled:opacity-40"
+            >
+              {saving ? '归档中…' : '归档并打开'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
