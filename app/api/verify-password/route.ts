@@ -6,16 +6,15 @@ export async function POST(req: Request) {
   try {
     const { password } = await req.json();
 
-    // Cloudflare Pages 下优先从请求上下文取，兜底用 process.env
+    // Cloudflare Pages 下优先从请求上下文取；本地或非 CF 环境走 process.env
     let expected: string | undefined = process.env.ADMIN_PASSWORD;
     if (!expected) {
       try {
-        const mod = await import('@cloudflare/next-on-pages');
-        // @ts-expect-error - runtime-only helper
-        const ctx = mod.getRequestContext?.();
+        const mod: any = await import('@cloudflare/next-on-pages');
+        const ctx = mod?.getRequestContext?.();
         expected = ctx?.env?.ADMIN_PASSWORD;
       } catch {
-        // 忽略：本地开发或非 Cloudflare 环境
+        // 忽略：非 Cloudflare 环境
       }
     }
 
@@ -33,3 +32,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: '请求异常' }, { status: 400 });
   }
 }
+
