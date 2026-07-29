@@ -1,6 +1,6 @@
-import Link from 'next/link';
 import { supabase, type Character } from '@/lib/supabase';
 import CharacterCard from '@/components/CharacterCard';
+import TopNav from '@/components/TopNav';
 
 // Cloudflare Pages 需要 edge runtime
 export const runtime = 'edge';
@@ -26,43 +26,10 @@ export default async function CharactersPage() {
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-white">
-      {/* 顶部：返回 + 标题 + AI 工作台入口 */}
-      <header className="mx-auto flex max-w-7xl items-center justify-between px-6 py-6 md:px-10 md:py-8">
-        <Link
-          href="/"
-          className="group flex items-center gap-2 text-sm text-white/70 transition-colors hover:text-white"
-          aria-label="返回首页"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" strokeWidth="1.6"
-               strokeLinecap="round" strokeLinejoin="round"
-               className="transition-transform group-hover:-translate-x-0.5">
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
-          <span className="tracking-widest">返回</span>
-        </Link>
-
-        <span className="font-display italic text-lg md:text-xl text-white/90">
-          龙鼠历险
-        </span>
-
-        <Link
-          href="/ai-workspace"
-          className="group flex items-center gap-2 text-sm text-white/70 transition-colors hover:text-white"
-          aria-label="进入 AI 工作台"
-        >
-          <span className="tracking-widest">AI 工作台</span>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" strokeWidth="1.6"
-               strokeLinecap="round" strokeLinejoin="round"
-               className="transition-transform group-hover:translate-x-0.5">
-            <path d="M9 6l6 6-6 6" />
-          </svg>
-        </Link>
-      </header>
+      <TopNav />
 
       {/* 标题区 */}
-      <section className="mx-auto max-w-7xl px-6 pt-6 pb-10 text-center md:px-10 md:pt-10 md:pb-14">
+      <section className="mx-auto max-w-7xl px-6 pt-4 pb-10 text-center md:px-10 md:pt-6 md:pb-14">
         <h1
           className="font-cn font-light tracking-[0.15em] animate-fade-up [animation-delay:0.1s] [animation-fill-mode:both]"
           style={{ fontSize: 'clamp(1.75rem, 4vw, 3rem)' }}
