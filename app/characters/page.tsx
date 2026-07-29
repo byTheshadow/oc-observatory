@@ -26,7 +26,7 @@ export default async function CharactersPage() {
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-white">
-      {/* 顶部：返回 + 标题 */}
+      {/* 顶部：返回 + 标题 + AI 工作台入口 */}
       <header className="mx-auto flex max-w-7xl items-center justify-between px-6 py-6 md:px-10 md:py-8">
         <Link
           href="/"
@@ -46,7 +46,19 @@ export default async function CharactersPage() {
           龙鼠历险
         </span>
 
-        <span aria-hidden className="w-[52px] md:w-[64px]" />
+        <Link
+          href="/ai-workspace"
+          className="group flex items-center gap-2 text-sm text-white/70 transition-colors hover:text-white"
+          aria-label="进入 AI 工作台"
+        >
+          <span className="tracking-widest">AI 工作台</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" strokeWidth="1.6"
+               strokeLinecap="round" strokeLinejoin="round"
+               className="transition-transform group-hover:translate-x-0.5">
+            <path d="M9 6l6 6-6 6" />
+          </svg>
+        </Link>
       </header>
 
       {/* 标题区 */}
