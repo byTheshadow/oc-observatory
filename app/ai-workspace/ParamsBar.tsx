@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 export type Defaults = {
   characterIds: string[];
@@ -15,6 +16,15 @@ export type Defaults = {
 type Character = { id: string; name: string };
 type Style = { id: string; name: string; description: string | null };
 type Preset = { id: string; title: string; content: string };
+
+type PanelKey =
+  | 'char'
+  | 'preset'
+  | 'world'
+  | 'style'
+  | 'view'
+  | 'word'
+  | 'extra';
 
 const VIEWPOINTS = ['第一人称', '第三人称', '全知'];
 const WORD_PRESETS = ['500', '1000', '2000', '3000', 'unlimited'];
@@ -40,76 +50,89 @@ export default function ParamsBar({
   onManageWorldbooks: () => void;
   config: { model: string };
 }) {
-  const [openPanel, setOpenPanel] = useState<
-    null | 'char' | 'preset' | 'world' | 'style' | 'view' | 'word' | 'extra'
-  >(null);
+  const [open, setOpen] = useState<{
+    key: PanelKey;
+    rect: DOMRect;
+  } | null>(null);
 
-  function togglePanel(k: any) {
-    setOpenPanel((cur) => (cur === k ? null : k));
+  function openPanel(key: PanelKey, el: HTMLElement) {
+    setOpen({ key, rect: el.getBoundingClientRect() });
+  }
+  function close() {
+    setOpen(null);
   }
   function patch(p: Partial<Defaults>) {
     onChange({ ...defaults, ...p });
   }
 
-  const chipCls =
-    'shrink-0 rounded-full border border-white/15 px-3 py-1.5 text-[11px] tracking-wider text-white/80 hover:border-white/35 whitespace-nowrap';
-
   const selChars = characters.filter((c) =>
     defaults.characterIds.includes(c.id),
   );
-  const selPresets = presets.filter((p) =>
-    defaults.presetIds.includes(p.id),
-  );
+  const selPresets = presets.filter((p) => defaults.presetIds.includes(p.id));
   const selWorlds = worldbooks.filter((p) =>
     defaults.worldbookIds.includes(p.id),
   );
   const style = styles.find((s) => s.id === defaults.styleId);
 
   return (
-    <div className="relative flex items-center gap-2 py-1">
-      <div className={chipCls + ' cursor-default opacity-80'}>
-        模型：{config.model || '未选'}
-      </div>
+    <div className="flex items-center gap-2 py-1">
+      <span className="shrink-0 rounded-full border border-white/15 px-3 py-1.5 text-[11px] tracking-wider text-white/60 whitespace-nowrap">
+        模型 · {config.model || '未选'}
+      </span>
 
       <Chip
         label="人设"
         summary={selChars.map((c) => c.name).join('、') || '未选'}
-        onClick={() => togglePanel('char')}
+        active={open?.key === 'char'}
+        onOpen={(el) => openPanel('char', el)}
       />
       <Chip
         label="自定义人设"
-        summary={selPresets.map((p) => p.title).join('、') || `${presets.length} 项`}
-        onClick={() => togglePanel('preset')}
+        summary={
+          selPresets.map((p) => p.title).join('、') || `共 ${presets.length} 项`
+        }
+        active={open?.key === 'preset'}
+        onOpen={(el) => openPanel('preset', el)}
       />
       <Chip
         label="世界书"
-        summary={selWorlds.map((p) => p.title).join('、') || `${worldbooks.length} 项`}
-        onClick={() => togglePanel('world')}
+        summary={
+          selWorlds.map((p) => p.title).join('、') ||
+          `共 ${worldbooks.length} 项`
+        }
+        active={open?.key === 'world'}
+        onOpen={(el) => openPanel('world', el)}
       />
       <Chip
         label="文风"
         summary={style?.name || '未选'}
-        onClick={() => togglePanel('style')}
+        active={open?.key === 'style'}
+        onOpen={(el) => openPanel('style', el)}
       />
       <Chip
         label="视角"
         summary={defaults.viewpoint || '未选'}
-        onClick={() => togglePanel('view')}
+        active={open?.key === 'view'}
+        onOpen={(el) => openPanel('view', el)}
       />
       <Chip
         label="字数"
-        summary={defaults.wordLimit === 'unlimited' ? '不限' : `≈${defaults.wordLimit}`}
-        onClick={() => togglePanel('word')}
+        summary={
+          defaults.wordLimit === 'unlimited' ? '不限' : `≈${defaults.wordLimit}`
+        }
+        active={open?.key === 'word'}
+        onOpen={(el) => openPanel('word', el)}
       />
       <Chip
         label="附加条件"
         summary={defaults.extra ? '已填' : '无'}
-        onClick={() => togglePanel('extra')}
+        active={open?.key === 'extra'}
+        onOpen={(el) => openPanel('extra', el)}
       />
 
-      {openPanel && (
-        <Panel onClose={() => setOpenPanel(null)}>
-          {openPanel === 'char' && (
+      {open && (
+        <PortalPanel anchorRect={open.rect} onClose={close}>
+          {open.key === 'char' && (
             <MultiPick
               title="选择官方角色"
               items={characters.map((c) => ({ id: c.id, label: c.name }))}
@@ -117,7 +140,7 @@ export default function ParamsBar({
               onChange={(ids) => patch({ characterIds: ids })}
             />
           )}
-          {openPanel === 'preset' && (
+          {open.key === 'preset' && (
             <MultiPickWithManage
               title="选择自定义人设"
               items={presets.map((p) => ({ id: p.id, label: p.title }))}
@@ -127,7 +150,7 @@ export default function ParamsBar({
               manageLabel="管理自定义人设"
             />
           )}
-          {openPanel === 'world' && (
+          {open.key === 'world' && (
             <MultiPickWithManage
               title="选择世界书 / 其他设定"
               items={worldbooks.map((p) => ({ id: p.id, label: p.title }))}
@@ -137,7 +160,7 @@ export default function ParamsBar({
               manageLabel="管理世界书"
             />
           )}
-          {openPanel === 'style' && (
+          {open.key === 'style' && (
             <SinglePick
               title="选择文风"
               items={[
@@ -152,7 +175,7 @@ export default function ParamsBar({
               onChange={(id) => patch({ styleId: id })}
             />
           )}
-          {openPanel === 'view' && (
+          {open.key === 'view' && (
             <SinglePick
               title="叙述视角"
               items={VIEWPOINTS.map((v) => ({ id: v, label: v }))}
@@ -160,71 +183,150 @@ export default function ParamsBar({
               onChange={(v) => patch({ viewpoint: v })}
             />
           )}
-          {openPanel === 'word' && (
+          {open.key === 'word' && (
             <WordPanel
               value={defaults.wordLimit}
               onChange={(v) => patch({ wordLimit: v })}
             />
           )}
-          {openPanel === 'extra' && (
+          {open.key === 'extra' && (
             <ExtraPanel
               value={defaults.extra}
               onChange={(v) => patch({ extra: v })}
             />
           )}
-        </Panel>
+        </PortalPanel>
       )}
     </div>
   );
 }
 
-/* ---------- 单元 ---------- */
+/* ---------- 胶囊 ---------- */
 
 function Chip({
   label,
   summary,
-  onClick,
+  active,
+  onOpen,
 }: {
   label: string;
   summary: string;
-  onClick: () => void;
+  active: boolean;
+  onOpen: (el: HTMLElement) => void;
 }) {
+  const ref = useRef<HTMLButtonElement | null>(null);
   return (
     <button
-      onClick={onClick}
-      className="shrink-0 rounded-full border border-white/15 px-3 py-1.5 text-[11px] tracking-wider text-white/85 hover:border-white/35"
+      ref={ref}
+      onClick={() => ref.current && onOpen(ref.current)}
+      className={`shrink-0 rounded-full border px-3 py-1.5 text-[11px] tracking-wider whitespace-nowrap transition ${
+        active
+          ? 'border-white/50 bg-white/10 text-white'
+          : 'border-white/15 text-white/85 hover:border-white/35'
+      }`}
     >
       <span className="text-white/50">{label}</span>
       <span className="mx-1 text-white/25">·</span>
-      <span className="max-w-[10rem] truncate align-bottom">{summary}</span>
+      <span className="inline-block max-w-[10rem] truncate align-bottom">
+        {summary}
+      </span>
     </button>
   );
 }
 
-function Panel({
+/* ---------- 用 Portal 挂到 body 的面板，避开 overflow 裁切 ---------- */
+
+function PortalPanel({
+  anchorRect,
   onClose,
   children,
 }: {
+  anchorRect: DOMRect;
   onClose: () => void;
   children: React.ReactNode;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+  const [pos, setPos] = useState<{
+    top: number;
+    left: number;
+    maxHeight: number;
+    width: number;
+    placement: 'below' | 'above';
+  } | null>(null);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => setMounted(true), []);
+
+  // 计算位置：优先放在锚点下方，不够就翻到上方
+  useLayoutEffect(() => {
+    const vw =
+      typeof window !== 'undefined' ? window.innerWidth : 360;
+    const vh =
+      typeof window !== 'undefined' ? window.innerHeight : 640;
+    const gutter = 8;
+    const width = Math.min(360, vw - gutter * 2);
+    // 水平：以锚点左边为起点，但不超出视口
+    let left = anchorRect.left;
+    if (left + width > vw - gutter) left = vw - gutter - width;
+    if (left < gutter) left = gutter;
+
+    // 垂直
+    const spaceBelow = vh - anchorRect.bottom - gutter;
+    const spaceAbove = anchorRect.top - gutter;
+    const preferBelow = spaceBelow >= 220 || spaceBelow >= spaceAbove;
+    const placement: 'below' | 'above' = preferBelow ? 'below' : 'above';
+    const maxHeight = Math.min(
+      480,
+      Math.max(180, placement === 'below' ? spaceBelow : spaceAbove),
+    );
+    const top =
+      placement === 'below'
+        ? anchorRect.bottom + gutter
+        : Math.max(gutter, anchorRect.top - gutter - maxHeight);
+
+    setPos({ top, left, maxHeight, width, placement });
+  }, [anchorRect]);
+
+  // 点外部/Esc 关闭
   useEffect(() => {
     function onDoc(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    // 用 mousedown 之外，也监听 touchstart 以覆盖手机
     document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
+    document.addEventListener('touchstart', onDoc, { passive: true });
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('touchstart', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
   }, [onClose]);
-  return (
+
+  if (!mounted || !pos) return null;
+
+  return createPortal(
     <div
       ref={ref}
-      className="absolute left-0 top-[100%] z-30 mt-2 w-[min(90vw,20rem)] rounded-xl border border-white/15 bg-[#141416] p-4 shadow-2xl"
+      className="fixed z-[95] rounded-xl border border-white/15 bg-[#141416] p-4 shadow-2xl"
+      style={{
+        top: pos.top,
+        left: pos.left,
+        width: pos.width,
+        maxHeight: pos.maxHeight,
+        overflowY: 'auto',
+      }}
     >
       {children}
-    </div>
+    </div>,
+    document.body,
   );
 }
+
+/* ---------- 各面板内容 ---------- */
 
 function MultiPick({
   title,
@@ -250,10 +352,10 @@ function MultiPick({
       {items.length === 0 ? (
         <p className="text-xs text-white/40">空</p>
       ) : (
-        <ul className="max-h-64 space-y-1 overflow-y-auto">
+        <ul className="space-y-1">
           {items.map((it) => (
             <li key={it.id}>
-              <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-sm text-white/85 hover:bg-white/5">
+              <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-white/85 hover:bg-white/5">
                 <input
                   type="checkbox"
                   checked={selected.includes(it.id)}
@@ -302,7 +404,7 @@ function SinglePick({
   return (
     <div>
       <h5 className="mb-2 text-xs tracking-[0.25em] text-white/60">{title}</h5>
-      <ul className="max-h-64 space-y-1 overflow-y-auto">
+      <ul className="space-y-1">
         {items.map((it) => (
           <li key={it.id || '_none'}>
             <label className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 text-sm text-white/85 hover:bg-white/5">
@@ -313,10 +415,12 @@ function SinglePick({
                 onChange={() => onChange(it.id)}
                 className="mt-1"
               />
-              <span>
+              <span className="min-w-0">
                 <span className="block">{it.label}</span>
                 {it.hint && (
-                  <span className="block text-[11px] text-white/40">{it.hint}</span>
+                  <span className="block text-[11px] text-white/40">
+                    {it.hint}
+                  </span>
                 )}
               </span>
             </label>
@@ -393,8 +497,8 @@ function ExtraPanel({
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        rows={6}
-        placeholder="例：加入一段江边夜话；池不晚偶尔冒出仓鼠碎念…"
+        rows={8}
+        placeholder="例：加入一段江边夜话…"
         className="w-full resize-y rounded-md border border-white/15 bg-black/40 p-2 text-sm text-white outline-none focus:border-white/40"
       />
     </div>
