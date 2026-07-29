@@ -41,6 +41,52 @@ async function postJSON(url: string, body: any) {
   return j;
 }
 
+/**
+ * 前端压缩图片：最长边缩到 maxEdge，输出 WebP。
+ * 非图片文件或压缩失败时原样返回。
+ */
+async function compressImage(
+  file: File,
+  maxEdge = 2048,
+  quality = 0.92,
+): Promise<File> {
+  if (!file.type.startsWith('image/')) return file;
+
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch {
+    return file;
+  }
+
+  const { width, height } = bitmap;
+  const scale = Math.min(1, maxEdge / Math.max(width, height));
+  const w = Math.max(1, Math.round(width * scale));
+  const h = Math.max(1, Math.round(height * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    bitmap.close?.();
+    return file;
+  }
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  bitmap.close?.();
+
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob((b) => resolve(b), 'image/webp', quality);
+  });
+  if (!blob) return file;
+
+  // 压缩后反而更大且没缩尺寸 → 用原图
+  if (blob.size >= file.size && scale === 1) return file;
+
+  const baseName = file.name.replace(/\.[^.]+$/, '') || 'image';
+  return new File([blob], `${baseName}.webp`, { type: 'image/webp' });
+}
+
 /* ---------- 主组件 ---------- */
 
 export default function CharacterDetail({ initial }: { initial: Character }) {
@@ -165,16 +211,18 @@ function AvatarBlock({
   onChange: (url: string) => void;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [phase, setPhase] = useState<'idle' | 'compressing' | 'uploading'>('idle');
   const [err, setErr] = useState<string | null>(null);
   const [showSaved, setShowSaved] = useState(false);
 
   async function handleFile(file: File) {
     setErr(null);
-    setUploading(true);
+    setPhase('compressing');
     try {
+      const compressed = await compressImage(file).catch(() => file);
+      setPhase('uploading');
       const form = new FormData();
-      form.append('file', file);
+      form.append('file', compressed);
       form.append('characterId', character.id);
       const res = await fetch('/api/characters/upload-image', {
         method: 'POST',
@@ -189,10 +237,14 @@ function AvatarBlock({
     } catch (e: any) {
       setErr(e?.message ?? '上传失败');
     } finally {
-      setUploading(false);
+      setPhase('idle');
       if (inputRef.current) inputRef.current.value = '';
     }
   }
+
+  const busy = phase !== 'idle';
+  const btnText =
+    phase === 'compressing' ? '压缩中…' : phase === 'uploading' ? '上传中…' : '更换立绘';
 
   return (
     <div className="relative">
@@ -217,10 +269,10 @@ function AvatarBlock({
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
-            disabled={uploading}
+            disabled={busy}
             className="absolute bottom-3 right-3 rounded-full bg-black/60 px-4 py-2 text-xs tracking-widest text-white backdrop-blur transition hover:bg-black/80 disabled:opacity-60"
           >
-            {uploading ? '上传中…' : '更换立绘'}
+            {btnText}
           </button>
         )}
 
