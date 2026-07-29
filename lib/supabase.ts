@@ -13,7 +13,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON, {
 });
 
 /** 角色表行类型（前端读用） */
-export type Character = {1150
+export type Character = {
   id: string;
   name: string;
   avatar_url: string | null;
